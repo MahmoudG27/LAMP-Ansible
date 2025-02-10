@@ -1,116 +1,18 @@
 - name: Deploy lamp stack application
   hosts: all
-  become: true
-  tasks:
-  - name: install packages
-    yum:
-      name:
-      - python3-libselinux
-      - python3-libsemanage
-      - firewalld
-      state: present
+  become: yes
+  roles:
+    - common
 
+  # Install and Configure Database
 - name: Deploy lamp stack application
   hosts: lamp-db
-  become: true
-  tasks:
-  - name: install maria
-    yum:
-      name:
-      - mariadb-server
-      - python3-mysqlclient
-      state: present
- 
-  - name:  Copy the MySQL Configuration file
-    copy:
-      src: files/my.cnf
-      dest: /etc/my.cnf
-
-  - name: Start and enable the mariadb Service
-    service:
-      name: "{{ item }}"
-      state: started
-      enabled: yes
-    with_items:
-    - mariadb
-    - firewalld
-
-  - name: Insert firewalld rule
-    firewalld:
-      port: "{{ mysql_port }}/tcp"
-      zone: public
-      permanent: yes
-      immediate: yes
-      state: enabled
-
-  - mysql_db:
-      name: "{{ dbname }}"         
-      state: present
-
-  - mysql_user:
-      name: "{{ dbuser }}"
-      password: "{{ dbpassword }}"
-      priv: '*.*:ALL'
-      host: '172.20.1.100'
-      state: present
-
-  - copy:
-      src: files/db-load-script.sql
-      dest: /tmp/db-load-script.sql
-
-  - name: Load Inventory Data
-    shell: "mysql -f < /tmp/db-load-script.sql"
+  become: yes
+  roles:
+    - mysql
 
 - name: Deploy lamp stack application
   hosts: lampweb
   become: yes
-  tasks:
-    - name: Install httpd and php
-      yum:
-        name:
-          - httpd
-          - php
-          - php-mysqlnd
-        state: present
-
-    - name: Install web role specific dependencies
-      yum: 
-        name: git
-        state: installed
-
-    - name: Start firewalld
-      service: 
-        name: firewalld
-        state: started
-        enabled: yes
-
-    - name: insert firewalld rule for httpd
-      firewalld: 
-        port: "{{ httpd_port }}/tcp"
-        permanent: true
-        state: enabled
-        immediate: yes
-
-    - name: Set index.php as the default page
-      tags: "Set index.php as the default page"
-      replace:
-        path: /etc/httpd/conf/httpd.conf
-        regexp: 'DirectoryIndex index.html'
-        replace: 'DirectoryIndex index.php'
-
-    - name: http service state
-      service:
-        name: httpd
-        state: started
-        enabled: yes
-
-    - name: Copy the code from repository
-      git: 
-        repo: {{ repository }}
-        dest: /var/www/html/
-        force: yes
-
-    - name: Creates the index.php file
-      copy: 
-        src: files/index.php
-        dest: /var/www/html/index.php
+  roles:
+    - httpd-php
